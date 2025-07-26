@@ -232,6 +232,7 @@ SmartSprinklers.prototype = {
               if (this.zones[zIndex].enabled && this.zones[zIndex].wateringWeekdays.includes(Weekday[forecast[zDay].sunrise.getDay()]) && this.zones[zIndex].wateringMonths.includes(Months[forecast[zDay].sunrise.getMonth()])) {
                 if (!this.zones[zIndex].adaptive) {
                   zoneTimes[zDay][zIndex] = this.zones[zIndex].defDuration
+                  this.log.info(`[DEBUG] ${this.zones[zIndex].zoneName} uses fixed defDuration: ${zoneTimes[zDay][zIndex]} min`);
                 } else {
                   for (nDays = 1; nDays <= 7; nDays++) {
                     const temp = Weekday[forecast[nDays + zDay].sunrise.getDay()]
@@ -249,8 +250,20 @@ SmartSprinklers.prototype = {
                     if (this.zones[zIndex].rainThreshold < forecast[zDay].rain) { WaterNeeded = 0 }
                   } else { WaterNeeded = etoTillnext }
                   WaterNeeded = (WaterNeeded * this.zones[zIndex].cropCoef * this.zones[zIndex].plantDensity * this.zones[zIndex].expFactor * this.zones[zIndex].dripArea * this.zones[zIndex].tweakFactor) / this.zones[zIndex].efficiency
-                  zoneTimes[zDay][zIndex] = WaterNeeded * 60 / (this.zones[zIndex].dripLPH * this.zones[zIndex].dripNos)
-                  if (this.zones[zIndex].maxDuration <= zoneTimes[zDay][zIndex]) { zoneTimes[zDay][zIndex] = this.zones[zIndex].maxDuration }
+          
+                  // 计算未 cap 的理论时间
+                  let theoreticalTime = WaterNeeded * 60 / (this.zones[zIndex].dripLPH * this.zones[zIndex].dripNos);
+          
+                  // 日志输出理论值
+                  this.log.info(`[DEBUG] ${this.zones[zIndex].zoneName} theoretical watering time: ${theoreticalTime.toFixed(2)} min, WaterNeeded: ${WaterNeeded.toFixed(2)}`);
+          
+                  // cap 到 maxDuration
+                  if (this.zones[zIndex].maxDuration < theoreticalTime) {
+                    this.log.info(`[DEBUG] ${this.zones[zIndex].zoneName} watering time capped to maxDuration: ${this.zones[zIndex].maxDuration} min`);
+                    zoneTimes[zDay][zIndex] = this.zones[zIndex].maxDuration;
+                  } else {
+                    zoneTimes[zDay][zIndex] = theoreticalTime;
+                  }
                 }
               } else {
                 zoneTimes[zDay][zIndex] = 0
